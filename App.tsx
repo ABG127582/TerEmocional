@@ -205,7 +205,7 @@ const App: React.FC = () => {
         <div className="flex flex-wrap gap-2 mb-10 border-b-2 border-slate-200/20 pb-4 no-print">
           {[
             { id: 'scale', label: 'Registrar', icon: '📝' },
-            { id: 'history', label: 'Análise Clínica', icon: '📈' }
+            { id: 'history', label: 'Histórico', icon: '📈' }
           ].map(viewOption => (
             <button
               key={viewOption.id}

@@ -1,9 +1,8 @@
 import React, { useMemo, useState, useRef } from 'react';
 import { Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Line, ScatterChart, Scatter, ZAxis, ReferenceLine, ComposedChart, Legend } from 'recharts';
-import { Heart, BarChart3, Download, Eye, EyeOff, X, Compass, FileText, List, Calendar as CalendarIcon, Printer, Activity, Moon, BookOpen, Check, Trash2, Sparkles, Brain, ArrowRight, ChevronLeft, ChevronRight, Filter, MapPin, Users, Zap, Upload, CalendarRange } from 'lucide-react';
-import { Assessment, AIAnalysisResult } from '../types';
+import { Heart, BarChart3, Download, Eye, EyeOff, X, Compass, FileText, List, Calendar as CalendarIcon, Printer, Activity, Moon, BookOpen, Check, Trash2, ArrowRight, ChevronLeft, ChevronRight, Filter, MapPin, Users, Zap, Upload, CalendarRange } from 'lucide-react';
+import { Assessment } from '../types';
 import { emotionalScales, emotionColors } from '../constants';
-import { aiService } from '../services/aiService';
 import { NeuroGlossary } from './NeuroGlossary';
 import { storageService } from '../services/storageService';
 
@@ -156,11 +155,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ assessments, theme, on
   // Import Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
   
-  // AI States
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [analysisResult, setAnalysisResult] = useState<AIAnalysisResult | null>(null);
-  const [analysisError, setAnalysisError] = useState<string | null>(null);
-
   // --- FILTRAGEM GLOBAL ---
   const filteredAssessments = useMemo(() => {
     return assessments.filter(a => {
@@ -267,23 +261,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ assessments, theme, on
   const chartBg = theme === 'dark' ? '#1e293b' : '#f8fafc';
   const chartText = theme === 'dark' ? '#e2e8f0' : '#1e293b';
 
-  const handleRunAnalysis = async () => {
-    if (filteredAssessments.length < 3) {
-      setAnalysisError("Registre pelo menos 3 emoções no período selecionado para gerar uma análise.");
-      return;
-    }
-    setIsAnalyzing(true);
-    setAnalysisError(null);
-    try {
-      const result = await aiService.generateClinicalInsight(filteredAssessments); 
-      setAnalysisResult(result);
-    } catch (error) {
-      setAnalysisError("Erro ao conectar com a IA. Verifique sua conexão ou tente mais tarde.");
-    } finally {
-      setIsAnalyzing(false);
-    }
-  };
-
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
@@ -347,26 +324,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ assessments, theme, on
             </div>
           </div>
           
-          {analysisResult && (
-             <div className="mb-8 p-6 bg-slate-50 rounded-xl border border-slate-200 print-force-black page-break-inside-avoid">
-                <div className="flex items-center gap-2 mb-3 text-slate-800 border-b border-slate-300 pb-2">
-                   <Sparkles className="w-5 h-5" />
-                   <h3 className="font-bold text-lg">Análise Clínica (IA)</h3>
-                </div>
-                <p className="text-slate-800 mb-4 text-justify leading-relaxed text-sm">{analysisResult.summary}</p>
-                <div className="grid grid-cols-2 gap-6">
-                  <div>
-                    <h4 className="font-bold text-slate-700 text-sm uppercase mb-2">Padrões</h4>
-                    <ul className="list-disc pl-5 space-y-1 text-xs text-slate-700">{analysisResult.patterns.map((p, i) => <li key={i}>{p}</li>)}</ul>
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-slate-700 text-sm uppercase mb-2">Sugestões</h4>
-                    <ul className="list-disc pl-5 space-y-1 text-xs text-slate-700">{analysisResult.suggestions.map((s, i) => <li key={i}>{s}</li>)}</ul>
-                  </div>
-                </div>
-             </div>
-          )}
-
           <div className="grid grid-cols-2 gap-8 mb-8 page-break-inside-avoid">
             <div className="p-4 rounded-lg border border-slate-300">
               <h3 className="font-bold text-lg mb-2 border-b border-slate-300 pb-2 print-force-black">Estatísticas</h3>
@@ -566,105 +523,6 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ assessments, theme, on
           </div>
       ) : (
       <>
-        {/* AI ANALYSIS SECTION */}
-        <div className={`rounded-2xl p-1 overflow-hidden relative ${theme === 'dark' ? 'bg-gradient-to-r from-purple-900/50 via-blue-900/50 to-indigo-900/50' : 'bg-gradient-to-r from-purple-100 via-blue-100 to-indigo-100'}`}>
-            {/* Background Glow */}
-            <div className="absolute top-0 left-0 w-full h-full bg-grid-white/[0.05] [mask-image:linear-gradient(0deg,transparent,black)]" />
-
-            <div className={`relative p-6 rounded-xl ${theme === 'dark' ? 'bg-slate-900/80' : 'bg-white/80'} backdrop-blur-sm`}>
-                {!analysisResult && !isAnalyzing && (
-                <div className="flex flex-col md:flex-row items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                        <div className={`p-3 rounded-full ${theme === 'dark' ? 'bg-indigo-500/20 text-indigo-300' : 'bg-indigo-100 text-indigo-600'}`}>
-                            <Sparkles className="w-6 h-6" />
-                        </div>
-                        <div>
-                            <h3 className={`text-lg font-bold ${textClass}`}>Insights com Inteligência Artificial</h3>
-                            <p className={`text-sm ${textSecondary}`}>
-                                Análise baseada nos {filteredAssessments.length} registros filtrados.
-                            </p>
-                        </div>
-                    </div>
-                    <button 
-                        onClick={handleRunAnalysis}
-                        disabled={filteredAssessments.length < 3}
-                        className="px-6 py-3 rounded-xl bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 text-white font-bold shadow-lg shadow-purple-500/30 hover:scale-105 transition-transform flex items-center gap-2 whitespace-nowrap disabled:opacity-50 disabled:scale-100"
-                    >
-                        <Brain className="w-4 h-4" />
-                        Gerar Análise
-                    </button>
-                </div>
-                )}
-
-                {isAnalyzing && (
-                <div className="flex flex-col items-center justify-center py-8 space-y-4">
-                    <div className="relative w-16 h-16">
-                        <div className="absolute inset-0 rounded-full border-4 border-t-purple-500 border-r-transparent border-b-blue-500 border-l-transparent animate-spin" />
-                        <div className="absolute inset-2 rounded-full border-4 border-t-transparent border-r-pink-500 border-b-transparent border-l-indigo-500 animate-spin-reverse" />
-                    </div>
-                    <p className={`text-sm font-medium animate-pulse ${textClass}`}>O Gemini está analisando seus registros...</p>
-                </div>
-                )}
-
-                {analysisError && (
-                <div className="text-red-500 p-4 text-center text-sm font-medium">
-                    {analysisError}
-                    <button onClick={() => setAnalysisError(null)} className="ml-2 underline">Tentar novamente</button>
-                </div>
-                )}
-
-                {analysisResult && (
-                <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="flex items-center gap-2">
-                            <Sparkles className="w-5 h-5 text-purple-500" />
-                            <h3 className={`font-bold text-lg bg-gradient-to-r from-indigo-500 to-pink-500 bg-clip-text text-transparent`}>
-                            Análise Clínica
-                            </h3>
-                        </div>
-                        <button onClick={() => setAnalysisResult(null)} className={`text-xs underline ${textSecondary}`}>Nova Análise</button>
-                    </div>
-
-                    <p className={`text-base leading-relaxed mb-6 ${textClass} p-4 rounded-lg ${theme === 'dark' ? 'bg-slate-800' : 'bg-slate-50'}`}>
-                        {analysisResult.summary}
-                    </p>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
-                            <h4 className={`text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2 ${theme === 'dark' ? 'text-blue-400' : 'text-blue-600'}`}>
-                            <Activity className="w-4 h-4" />
-                            Padrões Identificados
-                            </h4>
-                            <ul className="space-y-2">
-                            {analysisResult.patterns.map((item, idx) => (
-                                <li key={idx} className={`text-sm flex items-start gap-2 ${textSecondary}`}>
-                                    <ArrowRight className="w-4 h-4 mt-0.5 shrink-0 opacity-50" />
-                                    {item}
-                                </li>
-                            ))}
-                            </ul>
-                        </div>
-
-                        <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/50 border-slate-700' : 'bg-white border-slate-200'}`}>
-                            <h4 className={`text-sm font-bold uppercase tracking-wider mb-3 flex items-center gap-2 ${theme === 'dark' ? 'text-emerald-400' : 'text-emerald-600'}`}>
-                            <Brain className="w-4 h-4" />
-                            Sugestões Práticas
-                            </h4>
-                            <ul className="space-y-2">
-                            {analysisResult.suggestions.map((item, idx) => (
-                                <li key={idx} className={`text-sm flex items-start gap-2 ${textSecondary}`}>
-                                    <Check className="w-4 h-4 mt-0.5 shrink-0 opacity-50" />
-                                    {item}
-                                </li>
-                            ))}
-                            </ul>
-                        </div>
-                    </div>
-                </div>
-                )}
-            </div>
-        </div>
-
         {filteredAssessments.length === 0 ? (
             <div className="py-20 text-center opacity-60">
                 <p>Nenhum registro encontrado para este filtro de data/emoção.</p>
