@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Heart, Sun, Moon, LifeBuoy } from 'lucide-react';
+import { Analytics } from '@vercel/analytics/react';
 import { Toast } from './components/Toast';
 import { EmotionCard } from './components/EmotionCard';
 import { ContextForm } from './components/ContextForm';
@@ -278,6 +279,8 @@ const App: React.FC = () => {
 
         {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
       </div>
+
+      <Analytics />
     </div>
   );
 }
