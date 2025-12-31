@@ -850,7 +850,7 @@ export const HistoryView: React.FC<HistoryViewProps> = ({ assessments, theme, on
             )}
             </>
         )}
-
+        </>
       )}
 
       {/* Footer de Ações */}
