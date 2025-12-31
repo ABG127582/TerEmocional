@@ -1,0 +1,5 @@
+{
+  "name": "Termômetro Emocional",
+  "description": "Uma aplicação completa para rastreamento de emoções, permitindo aos usuários registrar sentimentos, contextos e estratégias de regulação, com visualização de histórico e insights.",
+  "requestFramePermissions": []
+}
