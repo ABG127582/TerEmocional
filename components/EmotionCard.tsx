@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
 import { EmotionScale, EmotionLevel } from '../types';
 import { emotionColors } from '../constants';
@@ -26,26 +26,37 @@ export const EmotionCard: React.FC<EmotionCardProps> = ({
   onSave, 
   theme 
 }) => {
+  const [selectedLevel, setSelectedLevel] = useState<EmotionLevel | null>(null);
   const IconComp = emotion.icon;
   const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';
   const textSecondary = theme === 'dark' ? 'text-slate-400' : 'text-slate-500';
   const emotionColor = emotionColors[emotionKey];
 
-  // Determina o nível atual sendo focado nesta emoção específica
-  const currentHoveredLevelValue = (hoveredLevel?.emotionKey === emotionKey) ? hoveredLevel.level.level : 0;
+  // Reseta a seleção quando o card é fechado
+  useEffect(() => {
+    if (!isExpanded) {
+      setSelectedLevel(null);
+    }
+  }, [isExpanded]);
+
+  // Lógica de Prioridade: 
+  // 1. Mostra o que está sob o mouse (Preview)
+  // 2. Se mouse saiu, mostra o que foi clicado (Locked/Selected)
+  // 3. Se nenhum, mostra 0
+  const activeDisplayLevel = (hoveredLevel?.emotionKey === emotionKey ? hoveredLevel.level : null) || selectedLevel;
+  const currentLevelValue = activeDisplayLevel ? activeDisplayLevel.level : 0;
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Evita toggle se clicar em elementos interativos internos
+    if ((e.target as HTMLElement).closest('button') || (e.target as HTMLElement).closest('[role="button"]')) {
+      return;
+    }
+    onCardToggle(emotionKey);
+  };
 
   return (
     <div
-      className={`rounded-2xl p-6 md:p-8 transition-all duration-500 ease-out cursor-pointer backdrop-blur-md border-2 overflow-hidden relative`}
-      onClick={() => onCardToggle(emotionKey)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onCardToggle(emotionKey);
-        }
-      }}
+      className={`rounded-2xl p-6 md:p-8 transition-all duration-500 ease-out cursor-default backdrop-blur-md border-2 overflow-hidden relative`}
       style={{
         background: theme === 'dark' 
           ? `linear-gradient(135deg, rgba(15, 23, 42, 0.9), rgba(15, 23, 42, 0.95))` 
@@ -56,28 +67,24 @@ export const EmotionCard: React.FC<EmotionCardProps> = ({
           : theme === 'dark' ? '0 8px 32px rgba(0,0,0,0.5)' : '0 8px 32px rgba(0,0,0,0.1)'
       }}
       aria-expanded={isExpanded}
-      aria-label={`${emotion.name}, clique para expandir`}
     >
-      {/* Glow Effect de fundo quando expandido */}
-      {isExpanded && (
-        <div 
-          className="absolute -top-20 -right-20 w-64 h-64 rounded-full blur-[100px] opacity-20 pointer-events-none transition-opacity duration-1000"
-          style={{ background: emotionColor.main }}
-        />
-      )}
-
-      <div className="relative z-10 flex items-center justify-between mb-4">
+      {/* Header clicável para expandir/colapsar */}
+      <div 
+        onClick={() => onCardToggle(emotionKey)}
+        className="relative z-10 flex items-center justify-between mb-4 cursor-pointer group"
+        role="button"
+        tabIndex={0}
+        aria-label={`${emotion.name}, clique para alternar`}
+      >
         <div className="flex items-center gap-4">
           <div
-            className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg relative group overflow-hidden"
+            className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg relative overflow-hidden transition-all duration-300 group-hover:scale-105"
             style={{ 
               background: theme === 'dark' ? '#0f172a' : '#ffffff',
               boxShadow: isExpanded ? `0 0 20px ${emotionColor.glow}` : 'none',
               border: `1px solid ${isExpanded ? emotionColor.main : 'transparent'}`
             }}
-            aria-hidden="true"
           >
-            {/* Fundo colorido animado no ícone */}
             <div 
               className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity duration-300"
               style={{ background: emotionColor.main }} 
@@ -101,30 +108,35 @@ export const EmotionCard: React.FC<EmotionCardProps> = ({
         </div>
         <ChevronDown
           className={`w-6 h-6 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''} ${textSecondary}`}
-          aria-hidden="true"
         />
       </div>
 
+      {/* Glow Effect de fundo quando expandido */}
+      {isExpanded && (
+        <div 
+          className="absolute -top-20 -right-20 w-64 h-64 rounded-full blur-[100px] opacity-20 pointer-events-none transition-opacity duration-1000"
+          style={{ background: emotionColor.main }}
+        />
+      )}
+
       <div className={`relative z-10 transition-all duration-500 ease-in-out overflow-hidden ${isExpanded ? 'max-h-[1200px] opacity-100' : 'max-h-0 opacity-0'}`}>
-        <div className="relative min-h-[140px] px-10 pt-8 pb-4">
+        <div className="relative min-h-[140px] px-16 pt-8 pb-4">
           
-          {/* TRILHA (Barra de Fundo) - Estilo "Trilho Desligado" */}
+          {/* TRILHA (Barra de Fundo) */}
           <div 
             className="h-3 rounded-full relative overflow-visible" 
             style={{ 
               background: theme === 'dark' ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.1)',
               boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.3)'
             }}
-            role="region" 
-            aria-label="Escala de emoção"
           >
             
-            {/* FEIXE DE LUZ (Barra de Progresso) - Estilo "Néon" */}
+            {/* FEIXE DE LUZ (Barra de Progresso) */}
             <div 
               className="absolute top-0 left-0 h-full rounded-full transition-all duration-300 pointer-events-none"
               style={{ 
-                width: currentHoveredLevelValue > 0 
-                  ? `${((currentHoveredLevelValue - 1) / (emotion.levels.length - 1)) * 100}%` 
+                width: currentLevelValue > 0 
+                  ? `${((currentLevelValue - 1) / (emotion.levels.length - 1)) * 100}%` 
                   : '0%',
                 background: emotionColor.main,
                 boxShadow: `0 0 10px ${emotionColor.main}, 0 0 20px ${emotionColor.glow}`
@@ -132,8 +144,9 @@ export const EmotionCard: React.FC<EmotionCardProps> = ({
             />
 
             {emotion.levels.map((item, index) => {
-              const isActive = currentHoveredLevelValue >= item.level;
-              const isCurrent = currentHoveredLevelValue === item.level;
+              const isActive = currentLevelValue >= item.level;
+              const isCurrent = currentLevelValue === item.level;
+              const isSelected = selectedLevel?.level === item.level;
 
               return (
                 <LevelButton
@@ -144,27 +157,28 @@ export const EmotionCard: React.FC<EmotionCardProps> = ({
                   index={index}
                   isActive={isActive}
                   isCurrent={isCurrent}
+                  isSelected={isSelected}
                   onHover={onHoverLevel}
-                  onSave={onSave}
+                  onSelect={setSelectedLevel}
                   theme={theme}
                 />
               );
             })}
           </div>
 
-          {/* Área de Detalhes - Com margem aumentada para evitar sobreposição dos labels */}
+          {/* Área de Detalhes */}
           <div className="pt-2 mt-24">
-            {hoveredLevel && hoveredLevel.emotionKey === emotionKey ? (
+            {activeDisplayLevel ? (
               <DetailCard 
-                level={hoveredLevel.level} 
+                level={activeDisplayLevel} 
                 theme={theme} 
                 emotionKey={emotionKey} 
-                onRegister={() => onSave(emotionKey, hoveredLevel.level.level)}
+                onRegister={() => onSave(emotionKey, activeDisplayLevel.level)}
               />
             ) : (
               <div className="flex items-center justify-center h-full min-h-[180px] pt-4 opacity-50">
                 <p className={`${textSecondary} text-xs font-mono uppercase tracking-widest`}>
-                  Selecione uma intensidade
+                  Selecione uma intensidade para ver detalhes
                 </p>
               </div>
             )}

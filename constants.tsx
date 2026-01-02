@@ -39,25 +39,25 @@ export const cognitiveDistortions = [
 export const NEURO_DATA: Record<string, NeuroInfo> = {
   alegria: {
     description: "Ativação do sistema de recompensa e opioides endógenos.",
-    recoveryEstimate: "30min - 2h (Pico sustentado, decaimento suave)",
+    recoveryEstimate: "20min - 4h+ (Dopamina decai rápido, Serotonina sustenta)",
     hormones: [
       { 
         name: "Dopamina", 
         color: "#FBBF24", 
         description: "Impulso de recompensa", 
-        decayProfile: { peakTime: 15, decayRate: 0.8 } 
+        decayProfile: { peakTime: 10, decayRate: 1.5 } // Pico mais rápido e curto
       },
       { 
         name: "Endorfina", 
         color: "#EC4899", 
         description: "O anestésico", 
-        decayProfile: { peakTime: 10, decayRate: 1.2 } 
+        decayProfile: { peakTime: 15, decayRate: 1.0 } 
       },
       { 
         name: "Serotonina", 
         color: "#34D399", 
-        description: "Segurança", 
-        decayProfile: { peakTime: 30, decayRate: 0.5 } 
+        description: "Segurança/Humor", 
+        decayProfile: { peakTime: 45, decayRate: 0.2 } // Sustentação prolongada
       }
     ]
   },
@@ -415,7 +415,7 @@ export const EMOTION_INSIGHTS: Record<string, Record<number, { example: string; 
       bodyChanges: "Tremores de excitação. Choro convulsivo de alegria. Necessidade de sentar (fraqueza nas pernas)."
     },
     5: {
-      example: "Carro freia bruscamente sem avisar na frente de pessoa (near-miss accident). Reflexo de Moro dispara - braços se flexionam. Grito involuntário. Coração acelerado por minutos.",
+      example: "Carro freia bruscamente sem avisar na frente de pessoa (near-miss accident). Reflexo de Moro dispara - braços se flexionam. Grita involuntariamente. Coração acelerado por minutos.",
       science: "Amígdala detecta THREAT iminente. Tálamo envia info direto para amígdala antes de consciência perceber. Locus ceruleus dispara noradrenalina (alerta) máxima em <200ms. Reflexo de Moro (startle ancestral) dispara braços e pernas. Adrenalina (potência máxima) 60-70%. Ritmo cardíaco salta de 70 para 130+ em segundos. Respiração trava momentaneamente (startle inibe respiração). Pessoa grita involuntariamente. Vigilância total por 2-3 minutos enquanto amígdala verifica se death ocorreu.",
       bodyChanges: "Reflexo de Moro (braços se abrem ou protegem o rosto). Contração muscular total súbita. Gasp (inalação ruidosa)."
     },

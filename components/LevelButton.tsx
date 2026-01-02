@@ -7,14 +7,26 @@ interface LevelButtonProps {
   emotion: EmotionScale;
   item: EmotionLevel;
   index: number;
-  isActive: boolean; // Se faz parte do caminho (ex: mouse no 3, o 1 e 2 são active)
-  isCurrent: boolean; // Se é o alvo exato do mouse
+  isActive: boolean; // Faz parte do caminho iluminado (hover ou seleção)
+  isCurrent: boolean; // É a ponta do caminho iluminado
+  isSelected?: boolean; // Foi especificamente clicado
   onHover: (data: { emotionKey: string; level: EmotionLevel } | null) => void;
-  onSave: (emotionKey: string, level: number) => void;
+  onSelect: (level: EmotionLevel) => void;
   theme: 'light' | 'dark';
 }
 
-export const LevelButton: React.FC<LevelButtonProps> = ({ emotionKey, emotion, item, index, isActive, isCurrent, onHover, onSave, theme }) => {
+export const LevelButton: React.FC<LevelButtonProps> = ({ 
+  emotionKey, 
+  emotion, 
+  item, 
+  index, 
+  isActive, 
+  isCurrent,
+  isSelected,
+  onHover, 
+  onSelect, 
+  theme 
+}) => {
   const emotionColor = emotionColors[emotionKey];
   const [showTooltip, setShowTooltip] = useState(false);
 
@@ -22,9 +34,9 @@ export const LevelButton: React.FC<LevelButtonProps> = ({ emotionKey, emotion, i
   const getButtonStyles = () => {
     const mainColor = emotionColor.main;
     
-    if (isCurrent) {
+    // Prioridade Visual: Selecionado (Fixo) ou Hover Atual
+    if (isCurrent || isSelected) {
       // ESTADO: NÚCLEO ATIVO (Alvo atual)
-      // Visual: Centro branco (quente) explodindo luz colorida
       return {
         className: 'scale-125 z-20 transition-all duration-300',
         style: {
@@ -41,7 +53,6 @@ export const LevelButton: React.FC<LevelButtonProps> = ({ emotionKey, emotion, i
       };
     } else if (isActive) {
       // ESTADO: CAMINHO ENERGIZADO (Anteriores)
-      // Visual: Cor sólida néon, brilho médio
       return {
         className: 'scale-110 z-10 transition-all duration-300',
         style: {
@@ -53,7 +64,6 @@ export const LevelButton: React.FC<LevelButtonProps> = ({ emotionKey, emotion, i
       };
     } else {
       // ESTADO: INATIVO (Desligado)
-      // Visual: Vidro escuro/fosco, borda sutil, sem brilho
       return {
         className: 'z-0 transition-all duration-300 hover:scale-110',
         style: {
@@ -74,7 +84,6 @@ export const LevelButton: React.FC<LevelButtonProps> = ({ emotionKey, emotion, i
       style={{
         left: `${(index / (emotion.levels.length - 1)) * 100}%`,
         // Ajuste fino para centralizar o botão (h-14/56px) na linha (h-3/12px)
-        // Centro Botão (28px) - Centro Linha (6px) = 22px de deslocamento para cima (~1.375rem)
         top: '-1.375rem', 
         transform: 'translateX(-50%)'
       }}
@@ -85,35 +94,35 @@ export const LevelButton: React.FC<LevelButtonProps> = ({ emotionKey, emotion, i
         onMouseLeave={() => { setShowTooltip(false); onHover(null); }}
         onClick={(e) => {
           e.stopPropagation();
-          onSave(emotionKey, item.level);
+          onSelect(item);
         }}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {
             e.preventDefault();
-            onSave(emotionKey, item.level);
+            onSelect(item);
           }
         }}
         className={`w-14 h-14 flex items-center justify-center rounded-full font-black text-lg cursor-pointer outline-none ${buttonStyle.className}`}
         style={buttonStyle.style}
         aria-label={`${emotion.name} nível ${item.level}: ${item.label}`}
-        aria-pressed={isActive}
+        aria-pressed={isSelected}
       >
         {item.level}
       </button>
 
-      {showTooltip && (
-        <div className="absolute bottom-full mb-3 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 text-white px-4 py-3 rounded-lg text-xs whitespace-nowrap shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md" role="tooltip">
+      {/* Tooltip simples só aparece se NÃO estiver selecionado (para não poluir quando o card grande abrir) */}
+      {showTooltip && !isSelected && (
+        <div className="absolute bottom-full mb-3 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 text-white px-4 py-3 rounded-lg text-xs whitespace-nowrap shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md pointer-events-none" role="tooltip">
           <p className="font-bold text-sm text-center uppercase tracking-wider" style={{ color: isActive ? emotionColor.chart : 'white' }}>{item.label}</p>
-          <p className="text-slate-300 text-xs mt-1">{item.desc.substring(0, 40)}...</p>
         </div>
       )}
 
       <span 
-        className={`relative text-[10px] uppercase tracking-widest mt-8 text-center max-w-24 transition-all duration-300 font-bold`}
+        className={`relative text-[10px] uppercase tracking-widest mt-8 text-center max-w-24 transition-all duration-300 font-bold select-none`}
         style={{
           color: isActive ? emotionColor.main : (theme === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'),
           textShadow: isActive ? `0 0 10px ${emotionColor.glow}` : 'none',
-          opacity: isActive || isCurrent ? 1 : 0.7
+          opacity: isActive || isCurrent || isSelected ? 1 : 0.7
         }}
       >
         {item.label}

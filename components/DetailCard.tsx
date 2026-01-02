@@ -64,11 +64,23 @@ export const DetailCard: React.FC<DetailCardProps> = ({ level, theme, emotionKey
                 />
               </div>
             </div>
+
+            {/* Citação Discreta */}
+            <div className="flex justify-end pt-1 border-t border-slate-200/10">
+              <a 
+                href="https://en.wikipedia.org/wiki/Circumplex_model" 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className={`text-[8px] ${textSecondary} opacity-40 hover:opacity-100 font-mono tracking-tight hover:underline cursor-pointer`}
+              >
+                Fonte: Modelo Circumplexo de Afeto (James A. Russell, 1980)
+              </a>
+            </div>
           </div>
         </div>
 
         {/* Coluna da Direita: Gráfico Neuroquímico */}
-        <div className="lg:col-span-7 h-[200px] lg:h-auto">
+        <div className="lg:col-span-7 h-[250px] lg:h-[300px]">
           <NeuroGraph emotionKey={emotionKey} intensityLevel={level.level} theme={theme} />
         </div>
       </div>

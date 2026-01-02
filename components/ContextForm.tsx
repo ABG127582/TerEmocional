@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { EmotionScale, ContextData } from '../types';
 import { emotionColors, emotionalScales, somaticSensations, cognitiveDistortions } from '../constants';
-import { Activity, X, Battery, BatteryLow, BatteryMedium, BatteryFull, Moon, Zap, Layers, ArrowRight, ArrowLeft, Check, Brain, MapPin, Users, HelpCircle } from 'lucide-react';
+import { Activity, X, Battery, BatteryLow, BatteryMedium, BatteryFull, Moon, Zap, Layers, ArrowRight, ArrowLeft, Check, Brain, MapPin, Users, HelpCircle, Plus, Crosshair, Target } from 'lucide-react';
 
-// --- Utilitários de UI (Mantidos para consistência) ---
+// --- Utilitários de UI ---
 
 const getSleepColor = (hours: number) => {
   if (hours < 5) return '#ff0033'; // Vermelho Neon Crítico
@@ -109,6 +109,149 @@ const EnergySelector: React.FC<EnergySelectorProps> = ({ value, onChange, theme 
   );
 };
 
+// --- Novo Componente: Seletor Visual Circumplexo ---
+interface CircumplexSelectorProps {
+    valence: number;
+    arousal: number;
+    onChange: (valence: number, arousal: number) => void;
+    theme: 'light' | 'dark';
+}
+
+const CircumplexSelector: React.FC<CircumplexSelectorProps> = ({ valence, arousal, onChange, theme }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+
+    const handleInteraction = (clientX: number, clientY: number) => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        
+        // Calcular porcentagem (0 a 1)
+        let xPct = (clientX - rect.left) / rect.width;
+        let yPct = 1 - ((clientY - rect.top) / rect.height); // Inverter Y pois CSS top é 0
+
+        // Clamp 0-1
+        xPct = Math.max(0, Math.min(1, xPct));
+        yPct = Math.max(0, Math.min(1, yPct));
+
+        // Converter para escala 1-10
+        const newValence = Math.round((xPct * 9 + 1) * 10) / 10;
+        const newArousal = Math.round((yPct * 9 + 1) * 10) / 10;
+
+        onChange(newValence, newArousal);
+    };
+
+    const handleMouseDown = (e: React.MouseEvent) => {
+        handleInteraction(e.clientX, e.clientY);
+        const handleMouseMove = (ev: MouseEvent) => handleInteraction(ev.clientX, ev.clientY);
+        const handleMouseUp = () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+        };
+        window.addEventListener('mousemove', handleMouseMove);
+        window.addEventListener('mouseup', handleMouseUp);
+    };
+
+    const handleTouchStart = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        handleInteraction(touch.clientX, touch.clientY);
+    };
+
+    const handleTouchMove = (e: React.TouchEvent) => {
+        const touch = e.touches[0];
+        handleInteraction(touch.clientX, touch.clientY);
+        e.preventDefault(); // Prevenir scroll enquanto arrasta
+    };
+
+    // Posição do ponto (0-100%)
+    const leftPct = ((valence - 1) / 9) * 100;
+    const bottomPct = ((arousal - 1) / 9) * 100;
+
+    return (
+        <div className="w-full flex flex-col items-center">
+             <div 
+                ref={containerRef}
+                className={`relative w-full aspect-square max-w-[280px] rounded-xl border-2 cursor-crosshair overflow-hidden shadow-inner ${theme === 'dark' ? 'bg-slate-800 border-slate-600' : 'bg-slate-100 border-slate-300'}`}
+                onMouseDown={handleMouseDown}
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+             >
+                {/* Grid Lines */}
+                <div className="absolute inset-0 pointer-events-none opacity-20" 
+                     style={{ backgroundImage: `linear-gradient(${theme === 'dark' ? '#fff' : '#000'} 1px, transparent 1px), linear-gradient(90deg, ${theme === 'dark' ? '#fff' : '#000'} 1px, transparent 1px)`, backgroundSize: '25% 25%' }} 
+                />
+                
+                {/* Eixos Centrais */}
+                <div className="absolute top-0 bottom-0 left-1/2 w-0.5 bg-slate-400/50 transform -translate-x-1/2 pointer-events-none" />
+                <div className="absolute left-0 right-0 top-1/2 h-0.5 bg-slate-400/50 transform -translate-y-1/2 pointer-events-none" />
+
+                {/* Etiquetas de Quadrante (Sutis) */}
+                <span className="absolute top-2 right-2 text-[8px] opacity-40 uppercase font-bold">Alta Energia / Prazer</span>
+                <span className="absolute top-2 left-2 text-[8px] opacity-40 uppercase font-bold">Alta Energia / Desprazer</span>
+                <span className="absolute bottom-2 left-2 text-[8px] opacity-40 uppercase font-bold">Baixa Energia / Desprazer</span>
+                <span className="absolute bottom-2 right-2 text-[8px] opacity-40 uppercase font-bold">Baixa Energia / Prazer</span>
+
+                {/* O Ponto Indicador */}
+                <div 
+                    className="absolute w-6 h-6 rounded-full shadow-[0_0_10px_currentColor] border-2 border-white transform -translate-x-1/2 translate-y-1/2 transition-transform duration-75"
+                    style={{ 
+                        left: `${leftPct}%`, 
+                        bottom: `${bottomPct}%`,
+                        backgroundColor: leftPct > 50 ? '#34d399' : '#f87171', // Verde se prazer, Vermelho se desprazer
+                        color: leftPct > 50 ? '#34d399' : '#f87171'
+                    }}
+                >
+                    <Crosshair className="w-full h-full p-0.5 text-white animate-spin-slow" />
+                </div>
+             </div>
+             
+             {/* Legendinhas */}
+             <div className="flex justify-between w-full max-w-[280px] text-[10px] mt-2 font-bold opacity-60 uppercase">
+                <span>Desprazer</span>
+                <span>Prazer</span>
+             </div>
+             <div className="text-xs mt-2 font-mono flex gap-4">
+                 <span>Valência: <strong>{valence}</strong></span>
+                 <span>Energia: <strong>{arousal}</strong></span>
+             </div>
+        </div>
+    );
+};
+
+// --- Novo Componente: Input de Tag Customizada ---
+const TagInput = ({ onAdd, placeholder, theme }: { onAdd: (val: string) => void, placeholder: string, theme: string }) => {
+    const [val, setVal] = useState('');
+    const inputClass = theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900';
+
+    return (
+        <div className="flex gap-2 mt-2">
+            <input 
+                value={val}
+                onChange={e => setVal(e.target.value)}
+                placeholder={placeholder}
+                className={`flex-1 px-3 py-1.5 rounded-lg text-sm border ${inputClass} outline-none focus:ring-1 focus:ring-blue-500`}
+                onKeyDown={e => {
+                    if (e.key === 'Enter' && val.trim()) {
+                        onAdd(val.trim());
+                        setVal('');
+                    }
+                }}
+            />
+            <button 
+                onClick={() => {
+                    if (val.trim()) {
+                        onAdd(val.trim());
+                        setVal('');
+                    }
+                }}
+                disabled={!val.trim()}
+                className="p-1.5 rounded-lg bg-blue-600 text-white disabled:opacity-50"
+            >
+                <Plus className="w-4 h-4" />
+            </button>
+        </div>
+    );
+};
+
+
 const toLocalISOString = (date: Date) => {
     const pad = (num: number) => num.toString().padStart(2, '0');
     const year = date.getFullYear();
@@ -150,18 +293,18 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
     customArousal: emotion.levels[level - 1]?.arousal || 5
   });
 
+  // Arrays de opções (Agora podem ser expandidos)
+  const [locations, setLocations] = useState(['Casa', 'Trabalho', 'Escola', 'Rua', 'Online']);
+  const [companyOptions, setCompanyOptions] = useState(['Só', 'Família', 'Amigos', 'Parceiro', 'Colegas']);
+  const [triggers, setTriggers] = useState(['Reunião', 'Email', 'Crítica', 'Elogio', 'Erro', 'Pensamento', 'Notícia']);
+  
   const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';
   const textSecondary = theme === 'dark' ? 'text-slate-400' : 'text-slate-500';
   const inputClass = theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900';
   const emotionColor = emotionColors[emotionKey];
   const currentSleepColor = getSleepColor(context.sleepHours);
 
-  // Arrays de opções
-  const locations = ['Casa', 'Trabalho', 'Escola', 'Rua', 'Online'];
-  const companyOptions = ['Só', 'Família', 'Amigos', 'Parceiro', 'Colegas'];
-  const triggers = ['Reunião', 'Email', 'Crítica', 'Elogio', 'Erro', 'Pensamento', 'Notícia'];
   const copingOptions = ['Respirar', 'Sair', 'Música', 'Água', 'Exercício', 'Escrever', 'Falar'];
-
   const isNegativeEmotion = ['raiva', 'tristeza', 'medo', 'nojo'].includes(emotionKey);
 
   const renderStepContent = () => {
@@ -235,6 +378,14 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                         </button>
                                     ))}
                                 </div>
+                                <TagInput 
+                                    onAdd={(val) => {
+                                        setLocations([...locations, val]);
+                                        setContext(prev => ({ ...prev, location: val }));
+                                    }}
+                                    placeholder="Outro local..." 
+                                    theme={theme} 
+                                />
                             </div>
 
                             <div>
@@ -249,6 +400,14 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                         </button>
                                     ))}
                                 </div>
+                                <TagInput 
+                                    onAdd={(val) => {
+                                        setCompanyOptions([...companyOptions, val]);
+                                        setContext(prev => ({ ...prev, company: [...prev.company, val] }));
+                                    }}
+                                    placeholder="Mais alguém..." 
+                                    theme={theme} 
+                                />
                             </div>
 
                             <div>
@@ -263,6 +422,14 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                         </button>
                                     ))}
                                 </div>
+                                <TagInput 
+                                    onAdd={(val) => {
+                                        setTriggers([...triggers, val]);
+                                        setContext(prev => ({ ...prev, trigger: val }));
+                                    }}
+                                    placeholder="Outro gatilho..." 
+                                    theme={theme} 
+                                />
                             </div>
                         </div>
                      </div>
@@ -272,8 +439,8 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
              return (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <div>
-                        <h3 className={`font-bold text-lg mb-2 ${textClass}`}>O que você sentiu e fez?</h3>
-                        <p className={`text-sm ${textSecondary} mb-6`}>Conectar sensações físicas com ações de regulação.</p>
+                        <h3 className={`font-bold text-lg mb-2 ${textClass}`}>Corpo e Regulação</h3>
+                        <p className={`text-sm ${textSecondary} mb-6`}>Como seu corpo reagiu e qual é o seu estado exato de ativação.</p>
                         
                         <div className="space-y-6">
                              <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
@@ -306,26 +473,31 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                 </div>
                             </div>
 
-                             {/* Calibragem Rápida */}
-                             <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                    <span className={`text-[10px] font-bold uppercase ${textSecondary}`}>Valência (Prazer)</span>
-                                    <input
-                                        type="range" min="1" max="10" step="0.5"
-                                        value={context.customValence}
-                                        onChange={(e) => setContext(prev => ({ ...prev, customValence: parseFloat(e.target.value) }))}
-                                        className="w-full h-1.5 bg-gradient-to-r from-red-500 via-gray-400 to-emerald-500 rounded-lg appearance-none cursor-pointer"
-                                    />
+                             {/* Calibragem Visual Circumplexa */}
+                             <div className={`p-4 rounded-xl border flex flex-col items-center ${theme === 'dark' ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                                <div className="flex justify-between w-full mb-3">
+                                    <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textSecondary}`}>
+                                        <Target className="w-3 h-3" /> Mapa Afetivo (Circumplexo)
+                                    </label>
+                                    <a 
+                                      href="https://en.wikipedia.org/wiki/Circumplex_model" 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      className={`text-[8px] ${textSecondary} opacity-40 hover:opacity-100 font-mono tracking-tight hover:underline cursor-pointer`}
+                                    >
+                                        Fonte: James A. Russell
+                                    </a>
                                 </div>
-                                <div className="space-y-1">
-                                    <span className={`text-[10px] font-bold uppercase ${textSecondary}`}>Arousal (Agitação)</span>
-                                    <input
-                                        type="range" min="1" max="10" step="0.5"
-                                        value={context.customArousal}
-                                        onChange={(e) => setContext(prev => ({ ...prev, customArousal: parseFloat(e.target.value) }))}
-                                        className="w-full h-1.5 bg-gradient-to-r from-blue-500 via-purple-500 to-red-500 rounded-lg appearance-none cursor-pointer"
-                                    />
-                                </div>
+                                
+                                <CircumplexSelector 
+                                    valence={context.customValence} 
+                                    arousal={context.customArousal} 
+                                    theme={theme}
+                                    onChange={(v, a) => setContext(prev => ({ ...prev, customValence: v, customArousal: a }))}
+                                />
+                                <p className={`text-[10px] mt-2 text-center max-w-xs ${textSecondary} opacity-70`}>
+                                    Clique ou arraste o ponto para representar exatamente como você se sente (Ex: Muito agitado mas triste = Canto superior esquerdo).
+                                </p>
                              </div>
                         </div>
                     </div>
@@ -362,7 +534,7 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                             <button 
                                                 key={dist.id}
                                                 onClick={() => setContext(prev => ({ ...prev, thinkingTraps: prev.thinkingTraps.includes(dist.id) ? prev.thinkingTraps.filter(t => t !== dist.id) : [...prev.thinkingTraps, dist.id] }))}
-                                                className={`flex items-start gap-2 p-2 rounded text-left border transition-all ${context.thinkingTraps.includes(dist.id) ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : `${inputClass} hover:border-yellow-400`}`}
+                                                className={`flex items-start gap-2 p-2 rounded-lg text-left border transition-all ${context.thinkingTraps.includes(dist.id) ? 'bg-yellow-500 text-white border-yellow-500 shadow-sm' : `${inputClass} hover:border-yellow-400`}`}
                                             >
                                                 <dist.icon className="w-4 h-4 mt-0.5 shrink-0 opacity-70" />
                                                 <div>

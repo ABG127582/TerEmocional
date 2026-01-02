@@ -5,6 +5,7 @@ import { EmotionCard } from './components/EmotionCard';
 import { ContextForm } from './components/ContextForm';
 import { HistoryView } from './components/HistoryView';
 import { BreathingModal } from './components/BreathingModal';
+import { NeuroGlossary } from './components/NeuroGlossary';
 import { emotionalScales } from './constants';
 import { storageService } from './services/storageService';
 import { Assessment, ToastMessage, ContextData } from './types';
@@ -170,7 +171,7 @@ const App: React.FC = () => {
                 </h1>
               </div>
               <div className="h-1 w-40 bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500 rounded-full" aria-hidden="true" />
-              <p className={`text-sm md:text-base ${textSecondary} mt-3`}>Ferramenta Clínica de Regulação Emocional</p>
+              <p className={`text-sm md:text-base ${textSecondary} mt-3`}>Ferramenta de Regulação Emocional</p>
             </div>
           </div>
 
@@ -242,6 +243,11 @@ const App: React.FC = () => {
                 theme={theme}
               />
             ))}
+            
+            {/* Seção Educativa no final da lista */}
+            <div className="pt-12">
+              <NeuroGlossary theme={theme} />
+            </div>
           </div>
         )}
 
