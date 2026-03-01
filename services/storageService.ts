@@ -3,6 +3,13 @@ import { Assessment, SafetyPlan } from '../types';
 const STORAGE_KEY = 'emotional_assessments';
 const THEME_KEY = 'theme_preference';
 const SAFETY_PLAN_KEY = 'safety_plan_v1';
+const TAGS_PREF_KEY = 'user_tags_v1';
+
+const DEFAULT_TAGS = {
+  locations: ['Casa', 'Trabalho', 'Escola', 'Rua', 'Online'],
+  company: ['Só', 'Família', 'Amigos', 'Parceiro', 'Colegas'],
+  triggers: ['Reunião', 'Email', 'Crítica', 'Elogio', 'Erro', 'Pensamento', 'Notícia']
+};
 
 export const storageService = {
   getAssessments: (): Assessment[] => {
@@ -13,19 +20,33 @@ export const storageService = {
       return [];
     }
   },
-  saveAssessment: (assessment: Omit<Assessment, 'id' | 'timestamp'>): boolean => {
+  saveAssessment: (assessment: Omit<Assessment, 'id' | 'timestamp'> & { timestamp?: string }): Assessment | null => {
     try {
       const assessments = storageService.getAssessments();
       const newAssessment: Assessment = {
         id: Date.now(),
-        timestamp: new Date().toISOString(),
+        timestamp: assessment.timestamp || new Date().toISOString(),
         ...assessment
       };
       assessments.push(newAssessment);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(assessments));
-      return true;
+      return newAssessment;
     } catch (err) {
-      return false;
+      return null;
+    }
+  },
+  updateAssessment: (id: number, updatedData: Partial<Assessment>): Assessment | null => {
+    try {
+      const assessments = storageService.getAssessments();
+      const index = assessments.findIndex(a => a.id === id);
+      if (index === -1) return null;
+      
+      const updatedAssessment = { ...assessments[index], ...updatedData };
+      assessments[index] = updatedAssessment;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(assessments));
+      return updatedAssessment;
+    } catch (err) {
+      return null;
     }
   },
   deleteAssessment: (id: number): boolean => {
@@ -113,6 +134,24 @@ export const storageService = {
   saveSafetyPlan: (plan: SafetyPlan): boolean => {
     try {
       localStorage.setItem(SAFETY_PLAN_KEY, JSON.stringify(plan));
+      return true;
+    } catch (err) {
+      return false;
+    }
+  },
+  // --- USER TAGS PREFERENCES ---
+  getUserTags: () => {
+    try {
+      const raw = localStorage.getItem(TAGS_PREF_KEY);
+      if (raw) return JSON.parse(raw);
+      return DEFAULT_TAGS;
+    } catch (err) {
+      return DEFAULT_TAGS;
+    }
+  },
+  saveUserTags: (tags: typeof DEFAULT_TAGS): boolean => {
+    try {
+      localStorage.setItem(TAGS_PREF_KEY, JSON.stringify(tags));
       return true;
     } catch (err) {
       return false;

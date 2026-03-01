@@ -3,6 +3,14 @@ import { LucideIcon } from 'lucide-react';
 export type Theme = 'light' | 'dark';
 export type EmotionKey = string;
 
+export interface RegulationPractice {
+  title: string;
+  description: string;
+  type: 'text' | 'video' | 'audio' | 'mixed';
+  content?: string[]; // Array de parágrafos/frases
+  videoUrl?: string; // Link do YouTube
+}
+
 export interface EmotionLevel {
   level: number;
   label: string;
@@ -11,10 +19,13 @@ export interface EmotionLevel {
   desc: string;
   examples: string;
   regulation: string;
+  feedback?: string; // Pílula de sabedoria pós-registro
+  practice?: RegulationPractice; // Novo campo para exercício guiado
 }
 
 export interface EmotionScale {
   name: string;
+  emoji: string;
   icon: LucideIcon;
   color: string;
   valenceBase: number;
@@ -32,6 +43,12 @@ export interface ContextData {
   thinkingTraps: string[]; // CBT: Distorções Cognitivas
   sleepHours: number;
   energy: number;
+  habits: {
+    water: boolean;
+    exercise: boolean;
+    meds: boolean;
+    therapy: boolean;
+  };
   notes: string;
   customTimestamp?: string;
   secondaryEmotion: string | null;

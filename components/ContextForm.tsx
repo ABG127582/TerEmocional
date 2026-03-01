@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { EmotionScale, ContextData } from '../types';
 import { emotionColors, emotionalScales, somaticSensations, cognitiveDistortions } from '../constants';
-import { Activity, X, Battery, BatteryLow, BatteryMedium, BatteryFull, Moon, Zap, Layers, ArrowRight, ArrowLeft, Check, Brain, MapPin, Users, HelpCircle, Plus, Crosshair, Target } from 'lucide-react';
+import { storageService } from '../services/storageService';
+import { Activity, X, Battery, BatteryLow, BatteryMedium, BatteryFull, Moon, Zap, Layers, ArrowRight, ArrowLeft, Check, Brain, MapPin, Users, HelpCircle, Plus, Crosshair, Target, Edit2, Trash2, Sparkles, Loader2, Wand2, Mic, MicOff } from 'lucide-react';
+import { InfoTooltip } from './InfoTooltip';
+import { GoogleGenAI, Type } from "@google/genai";
 
 // --- Utilitários de UI ---
 
@@ -276,6 +279,12 @@ interface ContextFormProps {
 export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, level, onSave, onCancel, theme }) => {
   const [step, setStep] = useState(0); // 0: Fisiologia, 1: Contexto, 2: Corpo/Estratégia, 3: Cognitivo/Notas
   const [date, setDate] = useState(toLocalISOString(new Date()));
+  
+  // AI & Voice States
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [isListening, setIsListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
   const [context, setContext] = useState<ContextData>({
     location: 'Casa',
     company: [],
@@ -286,6 +295,12 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
     thinkingTraps: [],
     sleepHours: 7, 
     energy: 5,
+    habits: {
+      water: false,
+      exercise: false,
+      meds: false,
+      therapy: false
+    },
     notes: '',
     secondaryEmotion: null,
     secondaryLevel: 0,
@@ -293,11 +308,91 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
     customArousal: emotion.levels[level - 1]?.arousal || 5
   });
 
-  // Arrays de opções (Agora podem ser expandidos)
-  const [locations, setLocations] = useState(['Casa', 'Trabalho', 'Escola', 'Rua', 'Online']);
-  const [companyOptions, setCompanyOptions] = useState(['Só', 'Família', 'Amigos', 'Parceiro', 'Colegas']);
-  const [triggers, setTriggers] = useState(['Reunião', 'Email', 'Crítica', 'Elogio', 'Erro', 'Pensamento', 'Notícia']);
+  // Arrays de opções com persistência
+  const [locations, setLocations] = useState<string[]>([]);
+  const [companyOptions, setCompanyOptions] = useState<string[]>([]);
+  const [triggers, setTriggers] = useState<string[]>([]);
   
+  // Estado para controlar qual seção está em modo de edição (exclusão)
+  const [editingSection, setEditingSection] = useState<'locations' | 'company' | 'triggers' | null>(null);
+
+  // Carregar tags do storage ao iniciar
+  useEffect(() => {
+      const savedTags = storageService.getUserTags();
+      setLocations(savedTags.locations);
+      setCompanyOptions(savedTags.company);
+      setTriggers(savedTags.triggers);
+  }, []);
+
+  // --- VOICE RECOGNITION SETUP ---
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+        recognitionRef.current = new SpeechRecognition();
+        recognitionRef.current.continuous = true;
+        recognitionRef.current.interimResults = true;
+        recognitionRef.current.lang = 'pt-BR';
+
+        recognitionRef.current.onresult = (event: any) => {
+            let interimTranscript = '';
+            let finalTranscript = '';
+
+            for (let i = event.resultIndex; i < event.results.length; ++i) {
+                if (event.results[i].isFinal) {
+                    finalTranscript += event.results[i][0].transcript;
+                } else {
+                    interimTranscript += event.results[i][0].transcript;
+                }
+            }
+            
+            // Append to existing notes only when finished or update efficiently?
+            // Simple approach: Update state. Note: This replaces, so we need logic to append if desired.
+            // For simplicity here, we append the final result to the previous note state.
+            if (finalTranscript) {
+                setContext(prev => ({
+                    ...prev,
+                    notes: (prev.notes ? prev.notes + ' ' : '') + finalTranscript
+                }));
+            }
+        };
+
+        recognitionRef.current.onerror = (event: any) => {
+            console.error('Speech recognition error', event.error);
+            setIsListening(false);
+        };
+        
+        recognitionRef.current.onend = () => {
+            setIsListening(false);
+        };
+    }
+  }, []);
+
+  const toggleListening = () => {
+      if (!recognitionRef.current) {
+          alert("Seu navegador não suporta reconhecimento de voz.");
+          return;
+      }
+
+      if (isListening) {
+          recognitionRef.current.stop();
+          setIsListening(false);
+      } else {
+          recognitionRef.current.start();
+          setIsListening(true);
+      }
+  };
+
+  // Função para salvar tags atualizadas
+  const updateTags = (type: 'locations' | 'company' | 'triggers', newTags: string[]) => {
+      const currentTags = storageService.getUserTags();
+      const updated = { ...currentTags, [type]: newTags };
+      storageService.saveUserTags(updated);
+      
+      if (type === 'locations') setLocations(newTags);
+      if (type === 'company') setCompanyOptions(newTags);
+      if (type === 'triggers') setTriggers(newTags);
+  };
+
   const textClass = theme === 'dark' ? 'text-white' : 'text-slate-900';
   const textSecondary = theme === 'dark' ? 'text-slate-400' : 'text-slate-500';
   const inputClass = theme === 'dark' ? 'bg-slate-800 border-slate-700 text-white' : 'bg-white border-slate-200 text-slate-900';
@@ -307,13 +402,157 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
   const copingOptions = ['Respirar', 'Sair', 'Música', 'Água', 'Exercício', 'Escrever', 'Falar'];
   const isNegativeEmotion = ['raiva', 'tristeza', 'medo', 'nojo'].includes(emotionKey);
 
+  // --- AI ANALYSIS ---
+  const handleAiAnalysis = async () => {
+    if (!context.notes || context.notes.trim().length < 5) {
+        alert("Escreva uma nota mais detalhada para a IA analisar.");
+        return;
+    }
+
+    setIsAiLoading(true);
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+        const prompt = `
+            Analise o texto de diário emocional abaixo e extraia dados estruturados.
+            
+            Texto do usuário: "${context.notes}"
+
+            Instruções:
+            1. Identifique o Gatilho principal (causa da emoção) em poucas palavras.
+            2. Identifique sensações físicas mencionadas ou implícitas (mapeie para a lista permitida abaixo).
+            3. Identifique possíveis distorções cognitivas (mapeie para os IDs permitidos abaixo).
+
+            Listas permitidas:
+            - Sensações: ${somaticSensations.join(', ')}
+            - Distorções (IDs): ${JSON.stringify(cognitiveDistortions.map(d => ({id: d.id, label: d.label})))}
+        `;
+
+        const response = await ai.models.generateContent({
+            model: 'gemini-3-flash-preview',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        trigger: { type: Type.STRING, description: "O gatilho curto identificado" },
+                        sensations: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Lista de sensações físicas da lista permitida" },
+                        distortionIds: { type: Type.ARRAY, items: { type: Type.STRING }, description: "IDs das distorções cognitivas identificadas" }
+                    }
+                }
+            }
+        });
+
+        const jsonStr = response.text.trim();
+        const data = JSON.parse(jsonStr);
+
+        setContext(prev => ({
+            ...prev,
+            trigger: data.trigger || prev.trigger,
+            bodySensations: [...new Set([...prev.bodySensations, ...(data.sensations || [])])],
+            thinkingTraps: [...new Set([...prev.thinkingTraps, ...(data.distortionIds || [])])]
+        }));
+
+        // Adicionar gatilho à lista se for novo e não vazio
+        if (data.trigger && !triggers.includes(data.trigger)) {
+            updateTags('triggers', [...triggers, data.trigger]);
+        }
+
+    } catch (error) {
+        console.error("Erro na análise IA:", error);
+        alert("Não foi possível analisar o texto agora.");
+    } finally {
+        setIsAiLoading(false);
+    }
+  };
+
+
+  const renderEditableSection = (
+      title: string, 
+      icon: React.ElementType, 
+      items: string[], 
+      selectedItem: string | string[], 
+      sectionKey: 'locations' | 'company' | 'triggers',
+      onSelect: (val: string) => void,
+      multiSelect: boolean = false
+  ) => {
+      const isEditing = editingSection === sectionKey;
+
+      return (
+        <div>
+            <div className="flex justify-between items-center mb-3">
+                <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textSecondary}`}>
+                    <IconWrapper className="w-3 h-3" as={icon} /> {title}
+                </label>
+                <button 
+                    onClick={() => setEditingSection(isEditing ? null : sectionKey)}
+                    className={`p-1.5 rounded-full transition-colors ${isEditing ? 'bg-red-500 text-white' : 'text-slate-400 hover:text-blue-500 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                    title={isEditing ? "Concluir edição" : "Editar/Excluir tags"}
+                >
+                    {isEditing ? <Check className="w-3 h-3" /> : <Edit2 className="w-3 h-3" />}
+                </button>
+            </div>
+            
+            <div className="flex flex-wrap gap-2">
+                {items.map(item => {
+                    const isSelected = multiSelect 
+                        ? (selectedItem as string[]).includes(item) 
+                        : selectedItem === item;
+                    
+                    return (
+                        <div key={item} className="relative group">
+                            <button 
+                                onClick={() => {
+                                    if (isEditing) {
+                                        updateTags(sectionKey, items.filter(i => i !== item));
+                                    } else {
+                                        onSelect(item);
+                                    }
+                                }}
+                                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all 
+                                    ${isEditing 
+                                        ? 'border-red-400 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 pr-8' 
+                                        : isSelected 
+                                            ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' 
+                                            : `${inputClass} opacity-70 hover:opacity-100`
+                                    }`}
+                            >
+                                {item}
+                                {isEditing && (
+                                    <span className="absolute right-2 top-1/2 -translate-y-1/2">
+                                        <Trash2 className="w-3 h-3" />
+                                    </span>
+                                )}
+                            </button>
+                        </div>
+                    );
+                })}
+            </div>
+            <TagInput 
+                onAdd={(val) => {
+                    if (!items.includes(val)) {
+                        updateTags(sectionKey, [...items, val]);
+                        if (!isEditing) onSelect(val);
+                    }
+                }}
+                placeholder={`Adicionar ${title.toLowerCase()}...`} 
+                theme={theme} 
+            />
+        </div>
+      );
+  };
+
   const renderStepContent = () => {
       switch(step) {
           case 0: // FISIOLOGIA & TEMPO
               return (
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                     <div>
-                        <h3 className={`font-bold text-lg mb-4 ${textClass}`}>Como você está biologicamente?</h3>
+                        <div className="flex items-center mb-4">
+                            <h3 className={`font-bold text-lg ${textClass}`}>Como você está biologicamente?</h3>
+                            <InfoTooltip text="Fatores físicos (sono, fome, energia) alteram como o cérebro processa emoções. É o 'terreno' onde a emoção cresce." direction="bottom" />
+                        </div>
                         <p className={`text-sm ${textSecondary} mb-6`}>Fatores físicos afetam drasticamente nossa regulação emocional.</p>
                         
                         <div className="space-y-6">
@@ -354,6 +593,40 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                     theme={theme}
                                 />
                             </div>
+
+                            {/* Rastreador de Hábitos */}
+                            <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-700/50">
+                                <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textSecondary}`}>
+                                    <Activity className="w-4 h-4" /> Hábitos de Hoje
+                                </label>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        { id: 'water', label: 'Água (2L+)', icon: '💧', color: 'bg-blue-500' },
+                                        { id: 'exercise', label: 'Exercício', icon: '🏃', color: 'bg-emerald-500' },
+                                        { id: 'meds', label: 'Medicação', icon: '💊', color: 'bg-purple-500' },
+                                        { id: 'therapy', label: 'Terapia', icon: '🛋️', color: 'bg-amber-500' }
+                                    ].map(habit => {
+                                        const isChecked = context.habits[habit.id as keyof typeof context.habits];
+                                        return (
+                                            <button
+                                                key={habit.id}
+                                                onClick={() => setContext(prev => ({
+                                                    ...prev,
+                                                    habits: { ...prev.habits, [habit.id]: !isChecked }
+                                                }))}
+                                                className={`flex items-center gap-3 p-3 rounded-xl border transition-all duration-300 ${
+                                                    isChecked 
+                                                        ? `${habit.color} text-white border-transparent shadow-md scale-105` 
+                                                        : `${inputClass} opacity-70 hover:opacity-100`
+                                                }`}
+                                            >
+                                                <span className="text-xl">{habit.icon}</span>
+                                                <span className="font-bold text-sm">{habit.label}</span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -363,74 +636,36 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                 <div className="space-y-6 animate-in slide-in-from-right duration-300">
                      <div>
                         <h3 className={`font-bold text-lg mb-2 ${textClass}`}>Onde e com quem?</h3>
-                        <p className={`text-sm ${textSecondary} mb-6`}>Identificar padrões de ambiente ajuda a prever gatilhos.</p>
+                        <p className={`text-sm ${textSecondary} mb-6`}>Identificar padrões de ambiente ajuda a prever gatilhos. Use o lápis para remover tags que não usa.</p>
 
                         <div className="space-y-6">
-                            <div>
-                                <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-3 ${textSecondary}`}>
-                                    <MapPin className="w-3 h-3" /> Localização
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {locations.map(loc => (
-                                        <button key={loc} onClick={() => setContext(prev => ({ ...prev, location: loc }))}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${context.location === loc ? 'bg-blue-600 text-white border-blue-600 shadow-md scale-105' : `${inputClass} opacity-70 hover:opacity-100`}`}>
-                                            {loc}
-                                        </button>
-                                    ))}
-                                </div>
-                                <TagInput 
-                                    onAdd={(val) => {
-                                        setLocations([...locations, val]);
-                                        setContext(prev => ({ ...prev, location: val }));
-                                    }}
-                                    placeholder="Outro local..." 
-                                    theme={theme} 
-                                />
-                            </div>
+                            {renderEditableSection(
+                                'Localização', 
+                                MapPin, 
+                                locations, 
+                                context.location, 
+                                'locations', 
+                                (val) => setContext(prev => ({ ...prev, location: val }))
+                            )}
 
-                            <div>
-                                <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-3 ${textSecondary}`}>
-                                    <Users className="w-3 h-3" /> Companhia
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {companyOptions.map(comp => (
-                                        <button key={comp} onClick={() => setContext(prev => ({ ...prev, company: prev.company.includes(comp) ? prev.company.filter(c => c !== comp) : [...prev.company, comp] }))}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${context.company.includes(comp) ? 'bg-purple-600 text-white border-purple-600 shadow-md scale-105' : `${inputClass} opacity-70 hover:opacity-100`}`}>
-                                            {comp}
-                                        </button>
-                                    ))}
-                                </div>
-                                <TagInput 
-                                    onAdd={(val) => {
-                                        setCompanyOptions([...companyOptions, val]);
-                                        setContext(prev => ({ ...prev, company: [...prev.company, val] }));
-                                    }}
-                                    placeholder="Mais alguém..." 
-                                    theme={theme} 
-                                />
-                            </div>
+                            {renderEditableSection(
+                                'Companhia', 
+                                Users, 
+                                companyOptions, 
+                                context.company, 
+                                'company', 
+                                (val) => setContext(prev => ({ ...prev, company: prev.company.includes(val) ? prev.company.filter(c => c !== val) : [...prev.company, val] })),
+                                true
+                            )}
 
-                            <div>
-                                <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider mb-3 ${textSecondary}`}>
-                                    <Zap className="w-3 h-3" /> Gatilho Principal
-                                </label>
-                                <div className="flex flex-wrap gap-2">
-                                    {triggers.map(trig => (
-                                        <button key={trig} onClick={() => setContext(prev => ({ ...prev, trigger: trig }))}
-                                            className={`px-4 py-2 rounded-lg text-sm font-medium border transition-all ${context.trigger === trig ? 'bg-pink-600 text-white border-pink-600 shadow-md scale-105' : `${inputClass} opacity-70 hover:opacity-100`}`}>
-                                            {trig}
-                                        </button>
-                                    ))}
-                                </div>
-                                <TagInput 
-                                    onAdd={(val) => {
-                                        setTriggers([...triggers, val]);
-                                        setContext(prev => ({ ...prev, trigger: val }));
-                                    }}
-                                    placeholder="Outro gatilho..." 
-                                    theme={theme} 
-                                />
-                            </div>
+                            {renderEditableSection(
+                                'Gatilho Principal', 
+                                Zap, 
+                                triggers, 
+                                context.trigger, 
+                                'triggers', 
+                                (val) => setContext(prev => ({ ...prev, trigger: val }))
+                            )}
                         </div>
                      </div>
                 </div>
@@ -476,9 +711,12 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                              {/* Calibragem Visual Circumplexa */}
                              <div className={`p-4 rounded-xl border flex flex-col items-center ${theme === 'dark' ? 'bg-slate-800/30 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                                 <div className="flex justify-between w-full mb-3">
-                                    <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textSecondary}`}>
-                                        <Target className="w-3 h-3" /> Mapa Afetivo (Circumplexo)
-                                    </label>
+                                    <div className="flex items-center">
+                                        <label className={`flex items-center gap-2 text-xs font-bold uppercase tracking-wider ${textSecondary}`}>
+                                            <Target className="w-3 h-3" /> Mapa Afetivo (Circumplexo)
+                                        </label>
+                                        <InfoTooltip text="Um mapa simples para encontrar o nome exato do que sente, cruzando sua Energia (Ativação) com o quanto é bom/ruim (Valência)." direction="bottom" />
+                                    </div>
                                     <a 
                                       href="https://en.wikipedia.org/wiki/Circumplex_model" 
                                       target="_blank" 
@@ -511,12 +749,42 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                         <p className={`text-sm ${textSecondary} mb-6`}>Registrar pensamentos é o primeiro passo para mudá-los.</p>
 
                         <div className="space-y-6">
-                            <textarea
-                                value={context.notes}
-                                onChange={(e) => setContext(prev => ({ ...prev, notes: e.target.value }))}
-                                placeholder="Descreva brevemente o que aconteceu ou o que você pensou..."
-                                className={`w-full px-4 py-4 rounded-xl border text-sm ${inputClass} outline-none h-32 resize-none focus:ring-2 focus:ring-blue-500 transition-all shadow-inner`}
-                            />
+                            <div className="relative">
+                                <textarea
+                                    value={context.notes}
+                                    onChange={(e) => setContext(prev => ({ ...prev, notes: e.target.value }))}
+                                    placeholder="Descreva brevemente o que aconteceu ou o que você pensou... Use o ditado ou o botão Mágico para auto-completar!"
+                                    className={`w-full px-4 py-4 rounded-xl border text-sm ${inputClass} outline-none h-32 resize-none focus:ring-2 focus:ring-blue-500 transition-all shadow-inner`}
+                                />
+                                
+                                {/* Voice Dictation Button */}
+                                <button
+                                    onClick={toggleListening}
+                                    className={`absolute left-3 bottom-3 p-2 rounded-full transition-all flex items-center justify-center 
+                                        ${isListening 
+                                            ? 'bg-red-500 text-white animate-pulse shadow-[0_0_10px_rgba(239,68,68,0.5)]' 
+                                            : `text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700`
+                                        }`}
+                                    title={isListening ? "Parar ditado" : "Ditar nota (Voz)"}
+                                >
+                                    {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+                                </button>
+
+                                {/* Magic AI Button */}
+                                <button 
+                                    onClick={handleAiAnalysis}
+                                    disabled={isAiLoading || !context.notes}
+                                    className={`absolute right-3 bottom-3 p-2 rounded-lg transition-all flex items-center gap-2 text-xs font-bold 
+                                        ${isAiLoading 
+                                            ? 'bg-slate-400 text-white cursor-wait' 
+                                            : 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg hover:scale-105 active:scale-95'
+                                        }`}
+                                    title="Auto-completar gatilhos e sensações com IA"
+                                >
+                                    {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                                    {isAiLoading ? 'Analisando...' : 'Mágica'}
+                                </button>
+                            </div>
 
                             {/* Seção TCC: Armadilhas de Pensamento (Apenas para emoções negativas) */}
                             {isNegativeEmotion && (
@@ -526,6 +794,7 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
                                         <h4 className={`text-sm font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-yellow-200' : 'text-yellow-700'}`}>
                                             Armadilhas de Pensamento (TCC)
                                         </h4>
+                                        <InfoTooltip text="Erros comuns de lógica que o cérebro comete quando está emocionado, fazendo a situação parecer pior do que é." direction="bottom" />
                                     </div>
                                     <p className={`text-xs mb-3 ${textSecondary}`}>Você identifica alguma dessas distorções no seu pensamento agora?</p>
                                     
@@ -663,3 +932,6 @@ export const ContextForm: React.FC<ContextFormProps> = ({ emotionKey, emotion, l
     </div>
   );
 };
+
+// Ícone auxiliar (Componente renomeado para PascalCase para conformidade com React)
+const IconWrapper = ({ as: Icon, className }: { as: React.ElementType, className: string }) => <Icon className={className} />;

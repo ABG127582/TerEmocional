@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { X, Wind, Eye, Hand, Ear, Coffee, Smile, Phone, HeartHandshake, Siren, Edit2, Save, Plus, Trash2, MapPin, Smartphone, Navigation, Volume2, VolumeX } from 'lucide-react';
+import { X, Wind, Eye, Hand, Ear, Coffee, Smile, Phone, HeartHandshake, Siren, Edit2, Save, Plus, Trash2, MapPin, Smartphone, Navigation, Volume2, VolumeX, ThumbsUp, Minus, ArrowRight, Brain, Shield, Flame, Droplets, Anchor, AlertTriangle, Calculator, Share2, MessageCircle, PhoneCall } from 'lucide-react';
 import FocusTrap from './FocusTrap';
 import { storageService } from '../services/storageService';
 import { SafetyPlan } from '../types';
@@ -8,7 +8,7 @@ interface BreathingModalProps {
   onClose: () => void;
 }
 
-type Mode = 'breathing' | 'grounding' | 'crisis';
+type Mode = 'breathing' | 'grounding' | 'regulation' | 'rumination' | 'crisis';
 type BreathTechnique = 'box' | 'relax' | 'balance';
 
 const BREATH_CONFIGS = {
@@ -47,8 +47,74 @@ const BREATH_CONFIGS = {
   }
 };
 
+const MAX_REGULATION_STRATEGIES = [
+    {
+        id: 'raiva',
+        label: 'Fúria / Ódio',
+        icon: Flame,
+        color: 'bg-red-500',
+        title: 'Choque Térmico (Gelo)',
+        desc: "Interrompa o sequestro da amígdala fisicamente.",
+        steps: [
+            "NÃO FALE. NÃO AJA. NÃO DECIDA.",
+            "Vá até a geladeira agora.",
+            "Pegue um cubo de gelo e aperte na mão fechada.",
+            "Foque toda sua atenção na dor do frio.",
+            "Deixe o gelo derreter um pouco.",
+            "A sensação física intensa 'reseta' o cérebro reptiliano."
+        ]
+    },
+    {
+        id: 'medo',
+        label: 'Pânico / Terror',
+        icon: AlertTriangle,
+        color: 'bg-purple-600',
+        title: 'Ancoragem Física',
+        desc: "Sobrevivendo à onda de pânico.",
+        steps: [
+            "Sente-se no chão. Sinta o chão segurando você.",
+            "Encoste as costas na parede com força.",
+            "O pânico é uma onda. Ele sobe, quebra e desce.",
+            "Não lute contra. Diga: 'É apenas fisiologia'.",
+            "Foque apenas na sensação das costas contra a parede."
+        ]
+    },
+    {
+        id: 'tristeza',
+        label: 'Desespero / Dor',
+        icon: Droplets,
+        color: 'bg-blue-600',
+        title: 'Mergulho Simulado (TIPP)',
+        desc: "Técnica para baixar a frequência cardíaca instantaneamente.",
+        steps: [
+            "Pegue uma bacia com água gelada (ou bolsa de gelo).",
+            "Prenda a respiração.",
+            "Mergulhe o rosto na água (ou coloque gelo nas olheiras).",
+            "Segure por 30 segundos.",
+            "Isso ativa o Nervo Vago e força seu corpo a 'desligar' o pânico."
+        ]
+    },
+    {
+        id: 'nojo',
+        label: 'Repulsa Extrema',
+        icon: Anchor,
+        color: 'bg-teal-600',
+        title: 'Controle de Náusea',
+        desc: "Estabilizando o reflexo vagal.",
+        steps: [
+            "Sente-se e incline a cabeça levemente para frente.",
+            "Respire devagar pelo nariz, evitando cheiros.",
+            "Coloque um pano frio na nuca ou na testa.",
+            "Não engula saliva em excesso, cuspa se precisar.",
+            "Foque em um ponto fixo visual."
+        ]
+    }
+];
+
 export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
   const [mode, setMode] = useState<Mode>('breathing');
+  const [viewState, setViewState] = useState<'exercise' | 'feedback'>('exercise');
+  const [feedbackResult, setFeedbackResult] = useState<'better' | 'same' | null>(null);
   
   // States for Breathing
   const [technique, setTechnique] = useState<BreathTechnique>('relax');
@@ -70,12 +136,25 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
   // States for Crisis/Safety Plan
   const [safetyPlan, setSafetyPlan] = useState<SafetyPlan>({ contacts: [], copingPhantom: '', safePlace: '' });
   const [isEditingPlan, setIsEditingPlan] = useState(false);
-  const [locationState, setLocationState] = useState<{ status: 'idle' | 'loading' | 'success' | 'error', text: string }>({ status: 'idle', text: '' });
+  const [locationState, setLocationState] = useState<{ 
+      status: 'idle' | 'loading' | 'success' | 'error', 
+      text: string,
+      coords?: { lat: number, lng: number } 
+  }>({ status: 'idle', text: '' });
+
+  // States for Regulation (Max Level)
+  const [selectedRegulation, setSelectedRegulation] = useState<string | null>(null);
+
+  // States for Rumination (Math)
+  const [mathStart, setMathStart] = useState(100);
 
   useEffect(() => {
     if (mode === 'crisis') {
       setSafetyPlan(storageService.getSafetyPlan());
     }
+    // Reset selections on mode change
+    setSelectedRegulation(null);
+    setMathStart(100);
   }, [mode]);
 
   // --- WAKE LOCK (Manter tela ligada) ---
@@ -97,6 +176,19 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
       if (wakeLock) wakeLock.release();
     };
   }, [isActive]);
+
+  // --- INTERCEPT CLOSE ---
+  const handleCloseAttempt = () => {
+      if (mode !== 'crisis' && viewState === 'exercise') {
+          // Pause activities
+          setIsActive(false); 
+          if (useSound && audioCtxRef.current) audioCtxRef.current.suspend();
+          
+          setViewState('feedback');
+      } else {
+          onClose();
+      }
+  };
 
   // --- AUDIO ENGINE ---
   const initAudio = useCallback(() => {
@@ -190,7 +282,7 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
 
   // --- BREATHING LOGIC ---
   useEffect(() => {
-    if (mode !== 'breathing' || !isActive) return;
+    if (mode !== 'breathing' || !isActive || viewState !== 'exercise') return;
 
     const currentConfig = BREATH_CONFIGS[technique];
     const safePhaseIndex = phaseIndex % currentConfig.phases.length;
@@ -224,7 +316,7 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [mode, isActive, technique, phaseIndex, useVibration, useSound, updateAudio]);
+  }, [mode, isActive, technique, phaseIndex, useVibration, useSound, updateAudio, viewState]);
 
   // Change Technique
   const changeTechnique = (tech: BreathTechnique) => {
@@ -238,7 +330,7 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
     }
   };
 
-  // --- GEOLOCATION ---
+  // --- GEOLOCATION & SHARING ---
   const handleGetLocation = () => {
     if (!navigator.geolocation) {
       setLocationState({ status: 'error', text: 'Geolocalização não suportada.' });
@@ -252,7 +344,8 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
         const { latitude, longitude } = position.coords;
         setLocationState({ 
             status: 'success', 
-            text: `Lat: ${latitude.toFixed(5)}, Long: ${longitude.toFixed(5)}\n(Precisão: ${Math.round(position.coords.accuracy)}m)` 
+            text: `Lat: ${latitude.toFixed(5)}, Long: ${longitude.toFixed(5)}\n(Precisão: ${Math.round(position.coords.accuracy)}m)`,
+            coords: { lat: latitude, lng: longitude }
         });
       },
       (error) => {
@@ -260,6 +353,33 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
+  };
+
+  const handleShareLocation = () => {
+      if (locationState.status !== 'success' || !locationState.coords) return;
+      
+      const mapLink = `https://www.google.com/maps?q=${locationState.coords.lat},${locationState.coords.lng}`;
+      const message = `Preciso de ajuda ou apoio. Minha localização atual é: ${mapLink}`;
+      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+      
+      window.open(whatsappUrl, '_blank');
+  };
+
+  const handleContactWhatsApp = (phone: string, name: string) => {
+      // Limpar número (manter apenas dígitos)
+      const cleanPhone = phone.replace(/\D/g, '');
+      const message = `Oi ${name}, estou usando meu plano de segurança emocional e preciso conversar um pouco. Pode falar?`;
+      
+      // Se tiver menos de 10 digitos, provavelmente está errado, mas tenta abrir
+      // Idealmente, se não tiver código de país, pode dar erro no deep link com número,
+      // mas vamos tentar assumir BR (55) se não começar com ele e tiver tamanho de celular BR.
+      let finalPhone = cleanPhone;
+      if (!finalPhone.startsWith('55') && finalPhone.length >= 10) {
+          finalPhone = '55' + finalPhone;
+      }
+
+      const url = `https://wa.me/${finalPhone}?text=${encodeURIComponent(message)}`;
+      window.open(url, '_blank');
   };
 
   // --- GROUNDING LOGIC ---
@@ -275,11 +395,11 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
   // Keyboard Listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+      if (e.key === 'Escape') handleCloseAttempt();
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [onClose]);
+  }, [onClose, viewState]);
 
   const handleSavePlan = () => {
     storageService.saveSafetyPlan(safetyPlan);
@@ -305,34 +425,53 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
       <div className="min-h-full flex items-center justify-center p-4 md:p-8">
         <FocusTrap className="flex flex-col items-center w-full max-w-2xl relative" aria-label="Ferramentas de Regulação">
             
-            {/* Header Navigation - Relative to avoid clipping */}
-            <div className="w-full flex justify-between items-start mb-8 z-20">
-                <div className="flex flex-wrap gap-2 bg-white/5 p-1 rounded-full backdrop-blur-md border border-white/10">
-                    <button 
-                        onClick={() => setMode('breathing')}
-                        className={`px-4 py-2 rounded-full text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${mode === 'breathing' ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
-                    >
-                        <Wind className="w-4 h-4" />
-                        Respiração
-                    </button>
-                    <button 
-                        onClick={() => setMode('grounding')}
-                        className={`px-4 py-2 rounded-full text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${mode === 'grounding' ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
-                    >
-                        <Navigation className="w-4 h-4" />
-                        Aterramento
-                    </button>
-                    <button 
-                        onClick={() => setMode('crisis')}
-                        className={`px-4 py-2 rounded-full text-xs md:text-sm font-bold transition-all flex items-center gap-2 ${mode === 'crisis' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
-                    >
-                        <Siren className="w-4 h-4" />
-                        Crise
-                    </button>
-                </div>
+            {/* Header Navigation - Scrollable for small screens */}
+            <div className="w-full flex justify-between items-start mb-6 z-20">
+                {viewState === 'exercise' ? (
+                  <div className="flex flex-wrap gap-2 bg-white/5 p-1 rounded-2xl backdrop-blur-md border border-white/10 max-w-[85%] overflow-x-auto no-scrollbar">
+                      <button 
+                          onClick={() => setMode('breathing')}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${mode === 'breathing' ? 'bg-indigo-500 text-white shadow-[0_0_15px_rgba(99,102,241,0.5)]' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
+                      >
+                          <Wind className="w-4 h-4" />
+                          Respiração
+                      </button>
+                      <button 
+                          onClick={() => setMode('grounding')}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${mode === 'grounding' ? 'bg-emerald-500 text-white shadow-[0_0_15px_rgba(16,185,129,0.5)]' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
+                      >
+                          <Navigation className="w-4 h-4" />
+                          Aterramento
+                      </button>
+                      <button 
+                          onClick={() => setMode('regulation')}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${mode === 'regulation' ? 'bg-blue-500 text-white shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
+                      >
+                          <Shield className="w-4 h-4" />
+                          Antídotos (Max)
+                      </button>
+                      <button 
+                          onClick={() => setMode('rumination')}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${mode === 'rumination' ? 'bg-amber-500 text-white shadow-[0_0_15px_rgba(245,158,11,0.5)]' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
+                      >
+                          <Brain className="w-4 h-4" />
+                          Mente
+                      </button>
+                      <button 
+                          onClick={() => setMode('crisis')}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 whitespace-nowrap flex-shrink-0 ${mode === 'crisis' ? 'bg-red-600 text-white shadow-[0_0_15px_rgba(220,38,38,0.5)] animate-pulse' : 'text-white/60 hover:text-white hover:bg-white/10'}`}
+                      >
+                          <Siren className="w-4 h-4" />
+                          Crise
+                      </button>
+                  </div>
+                ) : (
+                  <div className="flex-1" /> // Spacer
+                )}
+                
                 <button 
-                    onClick={onClose} 
-                    className="text-white/60 hover:text-white p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 rounded-full hover:bg-white/10"
+                    onClick={handleCloseAttempt} 
+                    className="text-white/60 hover:text-white p-2 transition-colors focus:outline-none focus:ring-2 focus:ring-white/50 rounded-full hover:bg-white/10 ml-2"
                     aria-label="Fechar exercício"
                 >
                     <X className="w-8 h-8" />
@@ -342,8 +481,63 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
             {/* Content Area */}
             <div className="w-full flex flex-col items-center justify-center min-h-[400px]">
                 
+                {/* --- MODO FEEDBACK (PÓS-SOS) --- */}
+                {viewState === 'feedback' && (
+                  <div className="animate-in zoom-in-95 duration-300 text-center max-w-sm">
+                      {!feedbackResult ? (
+                          <>
+                              <h3 className="text-2xl font-bold text-white mb-4">Como se sente agora?</h3>
+                              <p className="text-white/60 mb-8 text-sm">Validar o resultado ajuda seu cérebro a aprender que a regulação funciona.</p>
+                              
+                              <div className="grid grid-cols-2 gap-4">
+                                  <button 
+                                      onClick={() => setFeedbackResult('better')}
+                                      className="flex flex-col items-center gap-2 p-6 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white transition-all transform hover:scale-105 shadow-lg border border-indigo-400/30"
+                                  >
+                                      <ThumbsUp className="w-8 h-8" />
+                                      <span className="font-bold">Melhor</span>
+                                  </button>
+                                  <button 
+                                      onClick={() => setFeedbackResult('same')}
+                                      className="flex flex-col items-center gap-2 p-6 rounded-2xl bg-slate-800 hover:bg-slate-700 text-white transition-all hover:scale-105 border border-white/10"
+                                  >
+                                      <Minus className="w-8 h-8" />
+                                      <span className="font-bold">Igual</span>
+                                  </button>
+                              </div>
+                          </>
+                      ) : (
+                          <div className="flex flex-col items-center animate-in fade-in duration-500">
+                               {feedbackResult === 'better' ? (
+                                   <>
+                                        <div className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center text-white mb-4 shadow-[0_0_30px_rgba(34,197,94,0.4)] animate-bounce-short">
+                                            <Smile className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Excelente!</h3>
+                                        <p className="text-white/70 mb-6">Seu sistema nervoso acaba de registrar que você tem controle.</p>
+                                   </>
+                               ) : (
+                                   <>
+                                        <div className="w-16 h-16 rounded-full bg-slate-700 flex items-center justify-center text-white mb-4">
+                                            <Wind className="w-8 h-8" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-white mb-2">Tudo bem.</h3>
+                                        <p className="text-white/70 mb-6">A regulação é uma prática. O simples fato de tentar já ajuda.</p>
+                                   </>
+                               )}
+                               <button 
+                                  onClick={onClose}
+                                  className="px-8 py-3 bg-white text-slate-900 rounded-full font-bold hover:bg-slate-200 transition-colors flex items-center gap-2"
+                               >
+                                  Voltar ao App <ArrowRight className="w-4 h-4" />
+                               </button>
+                          </div>
+                      )}
+                  </div>
+                )}
+
                 {/* --- MODO RESPIRAÇÃO --- */}
-                {mode === 'breathing' && (
+                {viewState === 'exercise' && mode === 'breathing' && (
                     <div className="flex flex-col items-center animate-in zoom-in-95 duration-300 w-full">
                         
                         {/* Seletor de Técnica */}
@@ -418,7 +612,7 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
                 )}
 
                 {/* --- MODO ATERRAMENTO (GROUNDING) --- */}
-                {mode === 'grounding' && (
+                {viewState === 'exercise' && mode === 'grounding' && (
                     <div className="flex flex-col items-center w-full max-w-lg animate-in slide-in-from-right-8 duration-300 px-4">
                          <h3 className="text-2xl md:text-3xl font-bold text-white mb-2 text-center">Técnica 5-4-3-2-1</h3>
                          <p className="text-emerald-300 text-sm font-medium mb-8 tracking-wider uppercase">Engaje o Córtex para Parar a Ansiedade</p>
@@ -469,11 +663,11 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
                                     <button 
                                         onClick={() => {
                                             if (groundingStep < 4) setGroundingStep(groundingStep + 1);
-                                            else onClose();
+                                            else handleCloseAttempt(); // Feedback at end
                                         }}
                                         className="flex-[2] py-3 rounded-xl font-bold text-emerald-950 bg-emerald-400 hover:bg-emerald-300 shadow-lg shadow-emerald-500/20 transition-all transform hover:scale-[1.02] text-sm"
                                     >
-                                        {groundingStep === 4 ? "Finalizar Exercício" : "Próximo Passo"}
+                                        {groundingStep === 4 ? "Finalizar" : "Próximo Passo"}
                                     </button>
                                  </div>
                             </div>
@@ -481,8 +675,111 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
                     </div>
                 )}
 
+                {/* --- MODO REGULAÇÃO (MAX LEVEL) --- */}
+                {viewState === 'exercise' && mode === 'regulation' && (
+                    <div className="flex flex-col items-center w-full max-w-2xl animate-in zoom-in-95 duration-300 px-4">
+                        {!selectedRegulation ? (
+                            <>
+                                <h3 className="text-2xl font-bold text-white mb-2 text-center">Antídotos de Alta Intensidade</h3>
+                                <p className="text-blue-300 text-sm font-medium mb-8 tracking-wider uppercase text-center">O que você está sentindo no nível máximo?</p>
+                                
+                                <div className="grid grid-cols-2 gap-4 w-full">
+                                    {MAX_REGULATION_STRATEGIES.map(st => (
+                                        <button 
+                                            key={st.id}
+                                            onClick={() => setSelectedRegulation(st.id)}
+                                            className={`flex flex-col items-center p-6 rounded-2xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all hover:scale-[1.02] group`}
+                                        >
+                                            <div className={`w-14 h-14 rounded-full ${st.color} bg-opacity-20 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
+                                                <st.icon className={`w-8 h-8 ${st.color.replace('bg-', 'text-')}`} />
+                                            </div>
+                                            <span className="text-white font-bold text-lg mb-1">{st.label}</span>
+                                            <span className="text-white/40 text-xs text-center">{st.title}</span>
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
+                        ) : (
+                            <div className="w-full bg-slate-900/80 backdrop-blur-md rounded-3xl border border-white/10 p-8 shadow-2xl relative animate-in slide-in-from-bottom">
+                                <button 
+                                    onClick={() => setSelectedRegulation(null)}
+                                    className="absolute top-4 left-4 text-white/50 hover:text-white transition-colors flex items-center gap-1 text-sm font-bold uppercase tracking-wider"
+                                >
+                                    <ArrowRight className="w-4 h-4 rotate-180" /> Voltar
+                                </button>
+                                
+                                {(() => {
+                                    const strategy = MAX_REGULATION_STRATEGIES.find(s => s.id === selectedRegulation)!;
+                                    return (
+                                        <div className="flex flex-col items-center text-center mt-4">
+                                            <div className={`w-20 h-20 rounded-full ${strategy.color} bg-opacity-20 flex items-center justify-center mb-6 shadow-[0_0_30px_currentColor]`} style={{ color: strategy.color }}>
+                                                <strategy.icon className={`w-10 h-10 ${strategy.color.replace('bg-', 'text-')}`} />
+                                            </div>
+                                            <h3 className="text-3xl font-black text-white mb-2">{strategy.title}</h3>
+                                            <p className="text-white/60 mb-8 max-w-md">{strategy.desc}</p>
+                                            
+                                            <div className="space-y-4 w-full text-left bg-black/20 p-6 rounded-2xl border border-white/5">
+                                                {strategy.steps.map((step, idx) => (
+                                                    <div key={idx} className="flex gap-4">
+                                                        <div className={`w-6 h-6 rounded-full ${strategy.color} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mt-0.5`}>
+                                                            {idx + 1}
+                                                        </div>
+                                                        <p className="text-white text-lg font-medium leading-relaxed">{step}</p>
+                                                    </div>
+                                                ))}
+                                            </div>
+
+                                            <button 
+                                                onClick={handleCloseAttempt}
+                                                className={`mt-8 px-8 py-3 rounded-xl font-bold text-white shadow-lg transition-all hover:scale-105 ${strategy.color}`}
+                                            >
+                                                Já me sinto capaz de pensar
+                                            </button>
+                                        </div>
+                                    );
+                                })()}
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* --- MODO RUMINAÇÃO (MENTE) --- */}
+                {viewState === 'exercise' && mode === 'rumination' && (
+                    <div className="flex flex-col items-center w-full max-w-lg animate-in slide-in-from-right duration-300 px-4">
+                         <h3 className="text-2xl font-bold text-white mb-2 text-center">Interrupção Cognitiva</h3>
+                         <p className="text-amber-400 text-sm font-medium mb-8 tracking-wider uppercase">Sobrecarga de Memória de Trabalho</p>
+                         
+                         <div className="w-full bg-slate-900/50 backdrop-blur-md rounded-3xl p-8 border border-white/10 shadow-2xl text-center">
+                            <Calculator className="w-12 h-12 text-amber-500 mx-auto mb-4" />
+                            <p className="text-white/80 mb-6">
+                                A ruminação usa a mesma área do cérebro que o cálculo matemático. 
+                                Ao forçar um cálculo, você fisicamente "rouba" energia da preocupação.
+                            </p>
+
+                            <div className="bg-black/30 rounded-2xl p-6 mb-6">
+                                <p className="text-slate-400 uppercase text-xs font-bold tracking-widest mb-2">Desafio Mental</p>
+                                <div className="text-5xl font-mono font-black text-white mb-4 tracking-tighter">
+                                    {mathStart}
+                                </div>
+                                <p className="text-amber-500 font-bold mb-4">- 7 = ?</p>
+                                
+                                <button 
+                                    onClick={() => setMathStart(prev => prev - 7)}
+                                    className="w-full py-4 bg-amber-600 hover:bg-amber-500 text-white rounded-xl font-bold text-lg shadow-lg active:scale-95 transition-all"
+                                >
+                                    {mathStart - 7}
+                                </button>
+                            </div>
+                            
+                            <p className="text-xs text-white/30 italic">
+                                Continue subtraindo até sentir que o pensamento obsessivo perdeu força.
+                            </p>
+                         </div>
+                    </div>
+                )}
+
                 {/* --- MODO CRISE --- */}
-                {mode === 'crisis' && (
+                {viewState === 'exercise' && mode === 'crisis' && (
                     <div className="flex flex-col items-center w-full max-w-2xl animate-in slide-in-from-right-8 duration-300 px-4 pb-10">
                          <div className="flex items-center justify-center gap-3 mb-4 w-full relative">
                             <h3 className="text-2xl font-bold text-white text-center">Recursos de Segurança</h3>
@@ -531,12 +828,20 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
                                  </button>
                              </div>
                              
-                             <div className="bg-black/40 rounded-lg p-3 min-h-[60px] flex items-center justify-center text-center">
+                             <div className="bg-black/40 rounded-lg p-3 min-h-[60px] flex items-center justify-center text-center flex-col gap-2">
                                 {locationState.status === 'idle' && <p className="text-white/30 text-xs">Clique para obter coordenadas GPS em caso de emergência.</p>}
                                 {locationState.status === 'loading' && <p className="text-blue-400 text-xs animate-pulse">{locationState.text}</p>}
                                 {locationState.status === 'error' && <p className="text-red-400 text-xs">{locationState.text}</p>}
                                 {locationState.status === 'success' && (
-                                    <p className="text-white font-mono text-sm select-all whitespace-pre-line">{locationState.text}</p>
+                                    <>
+                                        <p className="text-white font-mono text-sm select-all whitespace-pre-line">{locationState.text}</p>
+                                        <button 
+                                            onClick={handleShareLocation}
+                                            className="mt-2 flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-bold transition-all w-full justify-center"
+                                        >
+                                            <Share2 className="w-3 h-3" /> Enviar via WhatsApp
+                                        </button>
+                                    </>
                                 )}
                              </div>
                          </div>
@@ -579,15 +884,26 @@ export const BreathingModal: React.FC<BreathingModalProps> = ({ onClose }) => {
                                                     />
                                                 </div>
                                             ) : (
-                                                <>
-                                                    <div className="flex items-center justify-between">
+                                                <div className="flex flex-col">
+                                                    <div className="flex items-center justify-between mb-1">
                                                         <p className="text-white font-bold truncate">{contact.name}</p>
                                                         <span className="text-[10px] bg-white/10 px-2 py-0.5 rounded text-white/50">{contact.relation}</span>
                                                     </div>
-                                                    <a href={`tel:${contact.phone}`} className="text-indigo-300 text-sm hover:underline flex items-center gap-1 mt-0.5">
-                                                        {contact.phone}
-                                                    </a>
-                                                </>
+                                                    <div className="flex gap-2 mt-1">
+                                                        <a 
+                                                            href={`tel:${contact.phone}`} 
+                                                            className="flex-1 flex items-center justify-center gap-2 bg-slate-700 hover:bg-slate-600 text-white py-2 rounded text-xs font-bold transition-colors"
+                                                        >
+                                                            <PhoneCall className="w-3 h-3" /> Ligar
+                                                        </a>
+                                                        <button 
+                                                            onClick={() => handleContactWhatsApp(contact.phone, contact.name)}
+                                                            className="flex-1 flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 text-white py-2 rounded text-xs font-bold transition-colors"
+                                                        >
+                                                            <MessageCircle className="w-3 h-3" /> Mensagem
+                                                        </button>
+                                                    </div>
+                                                </div>
                                             )}
                                         </div>
                                         {isEditingPlan && (

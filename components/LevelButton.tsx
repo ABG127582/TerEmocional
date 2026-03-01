@@ -30,13 +30,13 @@ export const LevelButton: React.FC<LevelButtonProps> = ({
   const emotionColor = emotionColors[emotionKey];
   const [showTooltip, setShowTooltip] = useState(false);
 
-  // Define os estilos baseados no estado com estética Neon/Futurista
+  // Define os estilos baseados no estado com estética Neon/Vidro
   const getButtonStyles = () => {
     const mainColor = emotionColor.main;
     
     // Prioridade Visual: Selecionado (Fixo) ou Hover Atual
     if (isCurrent || isSelected) {
-      // ESTADO: NÚCLEO ATIVO (Alvo atual)
+      // ESTADO: NÚCLEO ATIVO (Alvo atual - Brilho Máximo)
       return {
         className: 'scale-125 z-20 transition-all duration-300',
         style: {
@@ -52,7 +52,7 @@ export const LevelButton: React.FC<LevelButtonProps> = ({
         }
       };
     } else if (isActive) {
-      // ESTADO: CAMINHO ENERGIZADO (Anteriores)
+      // ESTADO: CAMINHO ENERGIZADO (Anteriores - Brilho Médio)
       return {
         className: 'scale-110 z-10 transition-all duration-300',
         style: {
@@ -63,7 +63,7 @@ export const LevelButton: React.FC<LevelButtonProps> = ({
         }
       };
     } else {
-      // ESTADO: INATIVO (Desligado)
+      // ESTADO: INATIVO (Vidro Fosco - Desligado)
       return {
         className: 'z-0 transition-all duration-300 hover:scale-110',
         style: {
@@ -77,6 +77,13 @@ export const LevelButton: React.FC<LevelButtonProps> = ({
   };
 
   const buttonStyle = getButtonStyles();
+
+  // Lógica de Zigue-Zague para evitar sobreposição de textos longos (ex: Desapontamento/Decepção)
+  // Pares ficam mais perto, Ímpares ficam mais longe verticalmente
+  const staggerMargin = index % 2 === 0 ? '2rem' : '3.5rem';
+  
+  const IconComp = emotion.icon;
+  const iconSize = 14 + (item.level * 3);
 
   return (
     <div
@@ -102,24 +109,29 @@ export const LevelButton: React.FC<LevelButtonProps> = ({
             onSelect(item);
           }
         }}
-        className={`w-14 h-14 flex items-center justify-center rounded-full font-black text-lg cursor-pointer outline-none ${buttonStyle.className}`}
+        className={`w-14 h-14 flex items-center justify-center rounded-2xl font-black text-lg cursor-pointer outline-none ${buttonStyle.className}`}
         style={buttonStyle.style}
         aria-label={`${emotion.name} nível ${item.level}: ${item.label}`}
         aria-pressed={isSelected}
       >
-        {item.level}
+        <IconComp 
+          size={iconSize} 
+          strokeWidth={isSelected || isCurrent ? 2.5 : 2}
+          className="transition-all duration-300"
+        />
       </button>
 
       {/* Tooltip simples só aparece se NÃO estiver selecionado (para não poluir quando o card grande abrir) */}
       {showTooltip && !isSelected && (
-        <div className="absolute bottom-full mb-3 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 text-white px-4 py-3 rounded-lg text-xs whitespace-nowrap shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md pointer-events-none" role="tooltip">
+        <div className="absolute bottom-full mb-3 left-1/2 transform -translate-x-1/2 z-50 bg-slate-900/90 text-white px-4 py-3 rounded-lg text-xs whitespace-nowrap shadow-[0_0_20px_rgba(0,0,0,0.5)] border border-white/10 backdrop-blur-md pointer-events-none animate-in fade-in zoom-in-95 duration-200" role="tooltip">
           <p className="font-bold text-sm text-center uppercase tracking-wider" style={{ color: isActive ? emotionColor.chart : 'white' }}>{item.label}</p>
         </div>
       )}
 
       <span 
-        className={`relative text-[10px] uppercase tracking-widest mt-8 text-center max-w-24 transition-all duration-300 font-bold select-none`}
+        className={`relative text-[10px] uppercase tracking-widest text-center max-w-24 transition-all duration-300 font-bold select-none pointer-events-none`}
         style={{
+          marginTop: staggerMargin,
           color: isActive ? emotionColor.main : (theme === 'dark' ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.3)'),
           textShadow: isActive ? `0 0 10px ${emotionColor.glow}` : 'none',
           opacity: isActive || isCurrent || isSelected ? 1 : 0.7
